@@ -2,16 +2,20 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"github.com/joho/godotenv"
-	"io"
 	"log"
 	"os"
-	"strings"
-
-	"github.com/sashabaranov/go-openai"
+	"wordsToFlashCards/internal/contentcreator"
+	"wordsToFlashCards/internal/markdownutils"
 )
+
+const (
+	voice         = "echo"
+	systemMessage = "Я создаю приложение для превращения английского слова в флэш-карту. \nТ.е я буду создавать связь \nСлово  - описание слова и примеры использования слова в речи.\nДля этого я буду использовать тебя.\nНе должно быть пропусков между строками. Это очень важно. Никаких пропусков между строками. Ни одной пустой строки.\nНА любое слово или фразу отвечай как дальше\n\n Примечание: не должно быть ни одной пустой строки, никаких пропусков, тк это сломает приложение\nПример запроса:\nanger. Пример ответа: Anger\n—\n## Description of Anger:\n<A very simple explanation of what the meaning of the word>\n## Examples of Usage:\n1. <Use of a word in a phrase>\n2. <Use of a word in a phrase>\n...\n## Audio\n## Illustration"
+)
+
+const size = 700
 
 func main() {
 	// Загрузка переменных из .env файла
@@ -26,7 +30,12 @@ func main() {
 		log.Fatal("OPENAI_API_KEY is not set in .env")
 	}
 
-	client := openai.NewClient(apiKey)
+	contentPath := os.Getenv("CONTENT_PATH")
+	if contentPath == "" {
+		log.Fatal("CONTENT_PATH is not set in .env")
+	}
+
+	contentCreators := contentcreator.NewContentCreator(apiKey)
 
 	fmt.Println("Conversation")
 	fmt.Println("---------------------")
@@ -36,39 +45,48 @@ func main() {
 		word := s.Text()
 
 		// Generate chat completion
-		req := createChatCompletionRequest(word)
-		resp, err := client.CreateChatCompletion(context.Background(), req)
+		content, err := contentCreators.GenerateText(systemMessage, word)
 		if err != nil {
-			fmt.Printf("ChatCompletion error: %v\n", err)
+			fmt.Printf(err.Error())
 			continue
 		}
-		content := resp.Choices[0].Message.Content
-		voice := "echo"
 
-		// Generate and insert audio
-		audioPath := fmt.Sprintf("audio/" + word + ".mp3")
-		err = generateSpeechAudio(client, word, voice, audioPath)
+		// Generate audio
+		audioData, err := contentCreators.FetchAudio(word, voice)
 		if err != nil {
-			fmt.Printf("generating speech audio %v", err)
-			continue
+			log.Fatal(err)
 		}
-		content = insertLocalAudioUnderSection(content, "## Audio", fmt.Sprintf(audioPath))
 
-		// Generate and insert image
-		imageURL, err := createDalleImage(client, word+" illustration")
+		// Save audio to file
+		audioPath := fmt.Sprintf(contentPath + "flashcards/" + "audio/" + word + ".mp3")
+		err = contentcreator.SaveAudioToFile(audioData, audioPath)
 		if err != nil {
-			fmt.Printf("Image creation error: %v\n", err)
-			continue
+			log.Fatal(err)
 		}
-		if imageURL == "" {
-			fmt.Println("No image URL returned")
-			continue
-		}
-		log.Println("Generated Image URL: ", imageURL)
-		content = insertImageUnderSection(content, "## Illustration", fmt.Sprintf("![%s | %d](%s)", word, 500, imageURL))
 
+		// Insert audio under section "Audio"
+		content = markdownutils.InsertLocalAudioUnderSection(content, "## Audio", "audio/"+word+".mp3")
+
+		// Generate image
+		imgData, err := contentCreators.FetchImageData(word)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Save image to file
+		imagePath := fmt.Sprintf(contentPath + "flashcards/" + "images/" + word + ".png")
+
+		err = contentcreator.SaveImageToFile(imgData, imagePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Insert image under section "Illustration"
+		content = markdownutils.InsertImageUnderSection(content, "## Illustration", "images/"+word+".png", size)
+
+		markdownFilePath := fmt.Sprintf(contentPath + "flashcards/" + word + ".md")
 		// Create markdown file
-		err = createMarkdownFile(word+".MD", content)
+		err = markdownutils.CreateMarkdownFile(markdownFilePath, content)
 		if err != nil {
 			fmt.Printf("Error while creating markdown file: %v\n", err)
 		}
@@ -76,101 +94,4 @@ func main() {
 		fmt.Printf("%s\n\n", content)
 		fmt.Print("> ")
 	}
-}
-
-func createMarkdownFile(fileName string, content string) error {
-	err := os.WriteFile(fileName, []byte(content), 0644)
-	if err != nil {
-		return fmt.Errorf("ошибка при создании файла: %v", err)
-	}
-	return nil
-}
-
-// createDalleImage generates an image using DALL-E and returns the URL.
-func createDalleImage(client *openai.Client, prompt string) (string, error) {
-	respUrl, err := client.CreateImage(
-		context.Background(),
-		openai.ImageRequest{
-			Prompt:         prompt,
-			Size:           openai.CreateImageSize512x512,
-			ResponseFormat: openai.CreateImageResponseFormatURL,
-			N:              1,
-			Style:          openai.CreateImageStyleNatural,
-		},
-	)
-	if err != nil {
-		return "", err
-	}
-
-	if len(respUrl.Data) == 0 {
-		return "", fmt.Errorf("no image data returned")
-	}
-
-	return respUrl.Data[0].URL, nil
-}
-
-func createChatCompletionRequest(word string) openai.ChatCompletionRequest {
-	return openai.ChatCompletionRequest{
-		Model: openai.GPT3Dot5Turbo,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: "Я создаю приложение для превращения английского слова в флэш-карту. \nТ.е я буду создавать связь \nСлово  - описание слова и примеры использования слова в речи.\nДля этого я буду использовать тебя.\nНе должно быть пропусков между строками. Это очень важно. Никаких пропусков между строками. Ни одной пустой строки.\nНА любое слово или фразу отвечай как дальше\n\n Примечание: не должно быть ни одной пустой строки, никаких пропусков, тк это сломает приложение\nПример запроса:\nanger. Пример ответа: Anger\n—\n## Description of Anger:\n<A very simple explanation of what the meaning of the word>\n## Examples of Usage:\n1. <Use of a word in a phrase>\n2. <Use of a word in a phrase>\n...\n## Audio\n## Illustration"},
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: word,
-			},
-		},
-	}
-}
-
-func insertImageUnderSection(content, section, imageMarkdown string) string {
-	index := strings.Index(content, section)
-	if index == -1 {
-		return content // Section not found, return original content
-	}
-
-	insertionPoint := index + len(section)
-	// Добавляем перевод строки перед и после imageMarkdown
-	return content[:insertionPoint] + "\n" + imageMarkdown + "\n\n" + content[insertionPoint:]
-}
-
-func generateSpeechAudio(client *openai.Client, text, voice, fileName string) error {
-	request := openai.CreateSpeechRequest{
-		Model:          openai.TTSModel1, // Use the default speech model
-		Input:          text,
-		Voice:          openai.SpeechVoice(voice), // Choose a voice
-		ResponseFormat: openai.SpeechResponseFormatMp3,
-		Speed:          1.0, // Normal speed
-	}
-
-	ctx := context.Background()
-	response, err := client.CreateSpeech(ctx, request)
-	if err != nil {
-		return err
-	}
-	defer response.Close()
-
-	// Create a file to save the audio
-	file, err := os.Create(fileName)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Copy the audio data to the file
-	_, err = io.Copy(file, response)
-	return err
-}
-
-func insertLocalAudioUnderSection(content, section, localAudioPath string) string {
-	index := strings.Index(content, section)
-	if index == -1 {
-		return content // Section not found, return original content
-	}
-
-	insertionPoint := index + len(section)
-	// Добавляем перевод строки перед и после ссылки на локальный аудиофайл
-	audioMarkdown := fmt.Sprintf("\n![[%s]]", localAudioPath)
-	return content[:insertionPoint] + audioMarkdown + content[insertionPoint:]
 }

@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-func (cc *ContentCreator) GenerateAudio(word, voice, fileName string) error {
+func (cc *ContentCreator) FetchAudio(word, voice string) (io.ReadCloser, error) {
 	request := openai.CreateSpeechRequest{
 		Model:          openai.TTSModel1,
 		Input:          word,
@@ -18,9 +18,14 @@ func (cc *ContentCreator) GenerateAudio(word, voice, fileName string) error {
 
 	response, err := cc.client.CreateSpeech(context.Background(), request)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer response.Close()
+
+	return response, nil
+}
+
+func SaveAudioToFile(audioData io.ReadCloser, fileName string) error {
+	defer audioData.Close()
 
 	file, err := os.Create(fileName)
 	if err != nil {
@@ -28,6 +33,6 @@ func (cc *ContentCreator) GenerateAudio(word, voice, fileName string) error {
 	}
 	defer file.Close()
 
-	_, err = io.Copy(file, response)
+	_, err = io.Copy(file, audioData)
 	return err
 }

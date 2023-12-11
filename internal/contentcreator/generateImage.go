@@ -32,40 +32,47 @@ func (cc *ContentCreator) GenerateImageUrl(prompt string) (string, error) {
 	return respUrl.Data[0].URL, nil
 }
 
-// GenerateImagePNG
-// filePath - путь к папке для хранения файла. Указывать без '/'
-func (cc *ContentCreator) GenerateImagePNG(prompt, filePath, fileName string) error {
+// FetchImageData получает данные изображения через API и возвращает их в виде []byte.
+// prompt: текст запроса для генерации изображения.
+func (cc *ContentCreator) FetchImageData(prompt string) ([]byte, error) {
 	reqBase64 := openai.ImageRequest{
 		Prompt:         prompt,
-		Size:           openai.CreateImageSize256x256,
+		Size:           openai.CreateImageSize1024x1024,
 		ResponseFormat: openai.CreateImageResponseFormatB64JSON,
 		N:              1,
+		Model:          openai.CreateImageModelDallE3,
 	}
 
 	respBase64, err := cc.client.CreateImage(context.Background(), reqBase64)
 	if err != nil {
-		return fmt.Errorf("Image creation error: %v", err)
+		return nil, fmt.Errorf("Image creation error: %v", err)
 	}
 
 	imgBytes, err := base64.StdEncoding.DecodeString(respBase64.Data[0].B64JSON)
 	if err != nil {
-		return fmt.Errorf("Base64 decode error: %v", err)
+		return nil, fmt.Errorf("Base64 decode error: %v", err)
 	}
 
-	r := bytes.NewReader(imgBytes)
-	imgData, err := png.Decode(r)
+	return imgBytes, nil
+}
+
+// SaveImageToFile сохраняет данные изображения в файл PNG.
+// imgData: данные изображения в виде []byte.
+// filePath: путь к файлу для сохранения изображения.
+func SaveImageToFile(imgData []byte, filePath string) error {
+	r := bytes.NewReader(imgData)
+	img, err := png.Decode(r)
 	if err != nil {
 		return fmt.Errorf("PNG decode error: %v", err)
 	}
 
-	fullPath := filePath + "/" + fileName
-	file, err := os.Create(fullPath)
+	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("File creation error: %v", err)
 	}
 	defer file.Close()
 
-	if err := png.Encode(file, imgData); err != nil {
+	if err := png.Encode(file, img); err != nil {
 		return fmt.Errorf("PNG encode error: %v", err)
 	}
 
