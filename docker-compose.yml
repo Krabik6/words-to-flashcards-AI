@@ -7,8 +7,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - C:/ob/vaults:/vaults
-      - C:/ob/config:/config
+      - shared-data:/config  # Используем совместный том
     restart: always
 
   flashcarder:
@@ -17,8 +16,11 @@ services:
       dockerfile: Dockerfile
     container_name: flashcarder
     ports:
-      - "8888:8888"
+      - "8888:8081"
     depends_on:
       - obsidian-remote
-    stdin_open: true
-    tty: true
+    volumes:
+      - shared-data:/config  # Используем тот же совместный том
+
+volumes:
+  shared-data:  # Определение совместного тома

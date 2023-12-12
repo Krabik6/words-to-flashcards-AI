@@ -1,10 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"log"
+	"net/http"
 	"os"
 	"wordsToFlashCards/internal/contentcreator"
 	"wordsToFlashCards/internal/markdownutils"
@@ -18,13 +19,11 @@ const (
 const size = 700
 
 func main() {
-	// Загрузка переменных из .env файла
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
-	// Получение значения API ключа
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		log.Fatal("OPENAI_API_KEY is not set in .env")
@@ -34,66 +33,61 @@ func main() {
 	if contentPath == "" {
 		log.Fatal("CONTENT_PATH is not set in .env")
 	}
-	contentPath += "/Master Vault/Content/"
-
+	contentPath += "/Master Vault/content/"
+	log.Println("contentPath: ", contentPath)
 	contentCreators := contentcreator.NewContentCreator(apiKey)
 
-	fmt.Println("Conversation")
-	fmt.Println("---------------------")
-	fmt.Print("> ")
-	s := bufio.NewScanner(os.Stdin)
-	for s.Scan() {
-		word := s.Text()
+	r := gin.Default()
 
-		// Generate chat completion
+	r.GET("/generateFlashcard/:word", func(c *gin.Context) {
+		word := c.Param("word")
+
 		content, err := contentCreators.GenerateText(systemMessage, word)
 		if err != nil {
-			fmt.Printf(err.Error())
-			continue
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 
-		// Generate audio
 		audioData, err := contentCreators.FetchAudio(word, voice)
 		if err != nil {
-			log.Fatal(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 
-		// Save audio to file
 		audioPath := fmt.Sprintf(contentPath + "flashcards/" + "audio/" + word + ".mp3")
+		log.Println("audioPath: ", audioPath)
 		err = contentcreator.SaveAudioToFile(audioData, audioPath)
 		if err != nil {
-			log.Fatal(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 
-		// Insert audio under section "Audio"
 		content = markdownutils.InsertLocalAudioUnderSection(content, "## Audio", "audio/"+word+".mp3")
 
-		// Generate image
 		imgData, err := contentCreators.FetchImageData(word)
 		if err != nil {
-			log.Fatal(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 
-		// Save image to file
 		imagePath := fmt.Sprintf(contentPath + "flashcards/" + "images/" + word + ".png")
-
 		err = contentcreator.SaveImageToFile(imgData, imagePath)
 		if err != nil {
-			log.Fatal(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 
-		// Insert image under section "Illustration"
 		content = markdownutils.InsertImageUnderSection(content, "## Illustration", "images/"+word+".png", size)
 
 		markdownFilePath := fmt.Sprintf(contentPath + "flashcards/" + word + ".md")
-		// Create markdown file
 		err = markdownutils.CreateMarkdownFile(markdownFilePath, content)
 		if err != nil {
-			fmt.Printf("Error while creating markdown file: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 
-		fmt.Printf("%s\n\n", content)
-		fmt.Print("> ")
-	}
-	fmt.Scanln()
+		c.JSON(http.StatusOK, gin.H{"message": "Flashcard generated successfully"})
+	})
+
+	r.Run(":8081")
 }
