@@ -34,6 +34,7 @@ func main() {
 	if contentPath == "" {
 		log.Fatal("CONTENT_PATH is not set in .env")
 	}
+	contentPath += "/Master Vault/Content/"
 
 	contentCreators := contentcreator.NewContentCreator(apiKey)
 
@@ -94,4 +95,5 @@ func main() {
 		fmt.Printf("%s\n\n", content)
 		fmt.Print("> ")
 	}
+	fmt.Scanln()
 }

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  obsidian-remote:
+    image: ghcr.io/sytone/obsidian-remote:latest
+    container_name: obsidian-remote
+    ports:
+      - "8080:8080"
+    volumes:
+      - C:/ob/vaults:/vaults
+      - C:/ob/config:/config
+    restart: always
+
+  flashcarder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flashcarder
+    ports:
+      - "8888:8888"
+    depends_on:
+      - obsidian-remote
+    stdin_open: true
+    tty: true
