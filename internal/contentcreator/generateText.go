@@ -22,6 +22,7 @@ func (cc *ContentCreator) GenerateText(systemMessage, word string) (string, erro
 
 	resp, err := cc.client.CreateChatCompletion(context.Background(), req)
 	if err != nil {
+		fmt.Println(resp)
 		log.Printf("Error sending OpenAI request: %v\n", err)
 		return "", err
 	}
