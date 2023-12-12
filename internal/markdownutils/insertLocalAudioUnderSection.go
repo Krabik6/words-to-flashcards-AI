@@ -2,6 +2,7 @@ package markdownutils
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -13,10 +14,13 @@ import (
 func InsertLocalAudioUnderSection(content, section, localAudioPath string) string {
 	index := strings.Index(content, section)
 	if index == -1 {
+		log.Printf("Раздел %s не найден, аудиофайл не вставлен.\n", section)
 		return content // Раздел не найден, возвращаем исходный контент
 	}
 
 	insertionPoint := index + len(section)
 	audioMarkdown := fmt.Sprintf("\n![[%s]]", localAudioPath)
-	return content[:insertionPoint] + audioMarkdown + content[insertionPoint:]
+	resultContent := content[:insertionPoint] + audioMarkdown + content[insertionPoint:]
+	log.Printf("Аудиофайл успешно вставлен в раздел %s.\n", section)
+	return resultContent
 }

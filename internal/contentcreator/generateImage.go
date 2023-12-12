@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/sashabaranov/go-openai"
 	"image/png"
+	"log"
 	"os"
 )
 
@@ -43,13 +44,23 @@ func (cc *ContentCreator) FetchImageData(prompt string) ([]byte, error) {
 		Model:          openai.CreateImageModelDallE3,
 	}
 
+	// Логируем отправку запроса на создание изображения
+	log.Printf("Sending image creation request with prompt: %s\n", prompt)
+
 	respBase64, err := cc.client.CreateImage(context.Background(), reqBase64)
 	if err != nil {
+		// Логируем ошибку создания изображения
+		log.Printf("Image creation error: %v\n", err)
 		return nil, fmt.Errorf("Image creation error: %v", err)
 	}
 
+	// Логируем успешное создание изображения
+	log.Println("Image created successfully")
+
 	imgBytes, err := base64.StdEncoding.DecodeString(respBase64.Data[0].B64JSON)
 	if err != nil {
+		// Логируем ошибку декодирования base64
+		log.Printf("Base64 decode error: %v\n", err)
 		return nil, fmt.Errorf("Base64 decode error: %v", err)
 	}
 
@@ -63,18 +74,27 @@ func SaveImageToFile(imgData []byte, filePath string) error {
 	r := bytes.NewReader(imgData)
 	img, err := png.Decode(r)
 	if err != nil {
+		// Логируем ошибку декодирования PNG
+		log.Printf("PNG decode error: %v\n", err)
 		return fmt.Errorf("PNG decode error: %v", err)
 	}
 
 	file, err := os.Create(filePath)
 	if err != nil {
+		// Логируем ошибку создания файла
+		log.Printf("File creation error: %v\n", err)
 		return fmt.Errorf("File creation error: %v", err)
 	}
 	defer file.Close()
 
 	if err := png.Encode(file, img); err != nil {
+		// Логируем ошибку кодирования PNG
+		log.Printf("PNG encode error: %v\n", err)
 		return fmt.Errorf("PNG encode error: %v", err)
 	}
+
+	// Логируем успешное сохранение изображения в файл
+	log.Printf("Image saved to file: %s\n", filePath)
 
 	return nil
 }

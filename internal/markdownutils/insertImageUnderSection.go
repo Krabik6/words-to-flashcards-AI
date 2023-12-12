@@ -2,6 +2,7 @@ package markdownutils
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -13,6 +14,7 @@ import (
 func InsertImageUnderSection(content, section, imagePath string, size uint) string {
 	index := strings.Index(content, section)
 	if index == -1 {
+		log.Printf("Раздел %s не найден, изображение не вставлено.\n", section)
 		return content // Раздел не найден, возвращаем исходный контент
 	}
 
@@ -20,5 +22,7 @@ func InsertImageUnderSection(content, section, imagePath string, size uint) stri
 	imageMarkdown := fmt.Sprintf("\n![image | %d](%s)\n\n", size, imagePath)
 
 	insertionPoint := index + len(section)
-	return content[:insertionPoint] + imageMarkdown + content[insertionPoint:]
+	resultContent := content[:insertionPoint] + imageMarkdown + content[insertionPoint:]
+	log.Printf("Изображение успешно вставлено в раздел %s.\n", section)
+	return resultContent
 }

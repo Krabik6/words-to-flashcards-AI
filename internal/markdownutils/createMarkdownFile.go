@@ -2,6 +2,7 @@ package markdownutils
 
 import (
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -13,8 +14,10 @@ func CreateMarkdownFile(fileName, content string) error {
 	content = AddHeaderToFront(content)
 	err := os.WriteFile(fileName, []byte(content), 0644)
 	if err != nil {
+		log.Printf("Ошибка при создании файла %s: %v\n", fileName, err)
 		return fmt.Errorf("ошибка при создании файла: %v", err)
 	}
+	log.Printf("Файл успешно создан: %s\n", fileName)
 	return nil
 }
 
