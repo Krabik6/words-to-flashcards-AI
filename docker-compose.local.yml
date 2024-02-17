@@ -9,6 +9,6 @@ services:
     ports:
       - "8888:8081"
     volumes:
-      - type: bind
-        source: ./flashcards
-        target: ./
+      - ./flashcards:/app/flashcards
+      - ./flashcards/audio:/app/flashcards/audio
+      - ./flashcards/images:/app/flashcards/images
