@@ -1,15 +1,6 @@
 version: '3.8'
 
 services:
-  obsidian-remote:
-    image: ghcr.io/sytone/obsidian-remote:latest
-    container_name: obsidian-remote
-    ports:
-      - "8080:8080"
-    volumes:
-      - shared-data:/config  # Используем совместный том
-    restart: always
-
   flashcarder:
     build:
       context: .
@@ -17,10 +8,7 @@ services:
     container_name: flashcarder
     ports:
       - "8888:8081"
-    depends_on:
-      - obsidian-remote
     volumes:
-      - shared-data:/config  # Используем тот же совместный том
-
-volumes:
-  shared-data:  # Определение совместного тома
+      - ./flashcards:/app/flashcards
+      - ./flashcards/audio:/app/flashcards/audio
+      - ./flashcards/images:/app/flashcards/images
